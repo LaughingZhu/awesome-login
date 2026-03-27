@@ -2,81 +2,9 @@ import gsap from 'gsap';
 import { useEffect, useRef } from 'react';
 
 import { useGSAP } from '@gsap/react';
+import { AnimatedCharacterScene } from './scene';
 
-gsap.registerPlugin();
-
-// ─── Pupil ───────────────────────────────────────────────────────────────────
-
-interface PupilProps {
-    size?: number;
-    maxDistance?: number;
-    pupilColor?: string;
-}
-
-const Pupil = ({ size = 12, maxDistance = 5, pupilColor = 'black' }: PupilProps) => {
-    return (
-        <div
-            data-max-distance={maxDistance}
-            className="pupil"
-            style={{
-                width: size,
-                height: size,
-                borderRadius: '50%',
-                backgroundColor: pupilColor,
-                willChange: 'transform',
-            }}
-        />
-    );
-};
-
-// ─── EyeBall ──────────────────────────────────────────────────────────────────
-
-interface EyeBallProps {
-    size?: number;
-    pupilSize?: number;
-    maxDistance?: number;
-    eyeColor?: string;
-    pupilColor?: string;
-}
-
-const EyeBall = ({
-    size = 48,
-    pupilSize = 16,
-    maxDistance = 10,
-    eyeColor = 'white',
-    pupilColor = 'black',
-}: EyeBallProps) => {
-    return (
-        <div
-            className="eyeball"
-            data-max-distance={maxDistance}
-            style={{
-                width: size,
-                height: size,
-                borderRadius: '50%',
-                backgroundColor: eyeColor,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                overflow: 'hidden',
-                willChange: 'height',
-            }}
-        >
-            <div
-                className="eyeball-pupil"
-                style={{
-                    width: pupilSize,
-                    height: pupilSize,
-                    borderRadius: '50%',
-                    backgroundColor: pupilColor,
-                    willChange: 'transform',
-                }}
-            />
-        </div>
-    );
-};
-
-// ─── AnimatedCharacters ───────────────────────────────────────────────────────
+gsap.registerPlugin(useGSAP);
 
 export interface AnimatedCharactersProps {
     isTyping?: boolean;
@@ -108,6 +36,7 @@ export function AnimatedCharacters({
     const purpleBlinkTimerRef = useRef<ReturnType<typeof setTimeout>>();
     const blackBlinkTimerRef = useRef<ReturnType<typeof setTimeout>>();
     const purplePeekTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    const delayedTimersRef = useRef<number[]>([]);
 
     const isHidingPassword = passwordLength > 0 && !showPassword;
     const isShowingPassword = passwordLength > 0 && showPassword;
@@ -152,6 +81,11 @@ export function AnimatedCharacters({
     } | null>(null);
 
     useEffect(() => {
+        const clearDelayedTimers = () => {
+            delayedTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+            delayedTimersRef.current = [];
+        };
+
         if (
             !purpleRef.current ||
             !blackRef.current ||
@@ -367,6 +301,7 @@ export function AnimatedCharacters({
         rafIdRef.current = requestAnimationFrame(tick);
 
         return () => {
+            clearDelayedTimers();
             window.removeEventListener('mousemove', onMove);
             cancelAnimationFrame(rafIdRef.current);
         };
@@ -382,7 +317,7 @@ export function AnimatedCharacters({
                     purpleEyeballs.forEach((el) => {
                         gsap.to(el, { height: 2, duration: 0.08, ease: 'power2.in' });
                     });
-                    setTimeout(() => {
+                    const timerId = window.setTimeout(() => {
                         purpleEyeballs.forEach((el) => {
                             const size =
                                 Number((el as HTMLElement).style.width.replace('px', '')) || 18;
@@ -390,6 +325,7 @@ export function AnimatedCharacters({
                         });
                         scheduleBlink();
                     }, 150);
+                    delayedTimersRef.current.push(timerId);
                 },
                 Math.random() * 4000 + 3000
             );
@@ -409,7 +345,7 @@ export function AnimatedCharacters({
                     blackEyeballs.forEach((el) => {
                         gsap.to(el, { height: 2, duration: 0.08, ease: 'power2.in' });
                     });
-                    setTimeout(() => {
+                    const timerId = window.setTimeout(() => {
                         blackEyeballs.forEach((el) => {
                             const size =
                                 Number((el as HTMLElement).style.width.replace('px', '')) || 16;
@@ -417,6 +353,7 @@ export function AnimatedCharacters({
                         });
                         scheduleBlink();
                     }, 150);
+                    delayedTimersRef.current.push(timerId);
                 },
                 Math.random() * 4000 + 3000
             );
@@ -514,7 +451,7 @@ export function AnimatedCharacters({
                         qt.purpleFaceTop(35);
                     }
 
-                    setTimeout(() => {
+                    const timerId = window.setTimeout(() => {
                         purpleEyePupils.forEach((p) => {
                             gsap.to(p, {
                                 x: -4,
@@ -526,6 +463,7 @@ export function AnimatedCharacters({
                         });
                         schedulePeek();
                     }, 800);
+                    delayedTimersRef.current.push(timerId);
                 },
                 Math.random() * 3000 + 2000
             );
@@ -533,7 +471,7 @@ export function AnimatedCharacters({
 
         schedulePeek();
         return () => clearTimeout(purplePeekTimerRef.current);
-    }, [isShowingPassword, passwordLength]);
+    }, [isShowingPassword, passwordLength, applyLookAtEachOther]);
 
     useEffect(() => {
         if (isTyping && !isShowingPassword) {
@@ -555,7 +493,7 @@ export function AnimatedCharacters({
             stateRef.current.isLooking = false;
         }
         return () => clearTimeout(lookingTimerRef.current);
-    }, [isTyping, isShowingPassword]);
+    }, [isTyping, isShowingPassword, applyLookAtEachOther]);
 
     useEffect(() => {
         if (isShowingPassword) {
@@ -563,165 +501,20 @@ export function AnimatedCharacters({
         } else if (isHidingPassword) {
             applyHidingPassword();
         }
-    }, [isHidingPassword, isShowingPassword]);
+    }, [isHidingPassword, isShowingPassword, applyHidingPassword, applyShowPassword]);
 
     return (
-        <div ref={containerRef} style={{ position: 'relative', width: 550, height: 400 }}>
-            <div
-                ref={purpleRef}
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 70,
-                    width: 180,
-                    height: 400,
-                    backgroundColor: '#6C3FF5',
-                    borderRadius: '10px 10px 0 0',
-                    zIndex: 1,
-                    transformOrigin: 'bottom center',
-                    willChange: 'transform',
-                }}
-            >
-                <div
-                    ref={purpleFaceRef}
-                    style={{
-                        position: 'absolute',
-                        display: 'flex',
-                        gap: 32,
-                        left: 45,
-                        top: 40,
-                    }}
-                >
-                    <EyeBall
-                        size={18}
-                        pupilSize={7}
-                        maxDistance={5}
-                        eyeColor="white"
-                        pupilColor="#2D2D2D"
-                    />
-                    <EyeBall
-                        size={18}
-                        pupilSize={7}
-                        maxDistance={5}
-                        eyeColor="white"
-                        pupilColor="#2D2D2D"
-                    />
-                </div>
-            </div>
-
-            <div
-                ref={blackRef}
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 240,
-                    width: 120,
-                    height: 310,
-                    backgroundColor: '#2D2D2D',
-                    borderRadius: '8px 8px 0 0',
-                    zIndex: 2,
-                    transformOrigin: 'bottom center',
-                    willChange: 'transform',
-                }}
-            >
-                <div
-                    ref={blackFaceRef}
-                    style={{
-                        position: 'absolute',
-                        display: 'flex',
-                        gap: 24,
-                        left: 26,
-                        top: 32,
-                    }}
-                >
-                    <EyeBall
-                        size={16}
-                        pupilSize={6}
-                        maxDistance={4}
-                        eyeColor="white"
-                        pupilColor="#2D2D2D"
-                    />
-                    <EyeBall
-                        size={16}
-                        pupilSize={6}
-                        maxDistance={4}
-                        eyeColor="white"
-                        pupilColor="#2D2D2D"
-                    />
-                </div>
-            </div>
-
-            <div
-                ref={orangeRef}
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    width: 240,
-                    height: 200,
-                    backgroundColor: '#FF9B6B',
-                    borderRadius: '120px 120px 0 0',
-                    zIndex: 3,
-                    transformOrigin: 'bottom center',
-                    willChange: 'transform',
-                }}
-            >
-                <div
-                    ref={orangeFaceRef}
-                    style={{
-                        position: 'absolute',
-                        display: 'flex',
-                        gap: 32,
-                        left: 82,
-                        top: 90,
-                    }}
-                >
-                    <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" />
-                    <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" />
-                </div>
-            </div>
-
-            <div
-                ref={yellowRef}
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 310,
-                    width: 140,
-                    height: 230,
-                    backgroundColor: '#E8D754',
-                    borderRadius: '70px 70px 0 0',
-                    zIndex: 4,
-                    transformOrigin: 'bottom center',
-                    willChange: 'transform',
-                }}
-            >
-                <div
-                    ref={yellowFaceRef}
-                    style={{
-                        position: 'absolute',
-                        display: 'flex',
-                        gap: 24,
-                        left: 52,
-                        top: 40,
-                    }}
-                >
-                    <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" />
-                    <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" />
-                </div>
-                <div
-                    ref={yellowMouthRef}
-                    style={{
-                        position: 'absolute',
-                        width: 80,
-                        height: 4,
-                        backgroundColor: '#2D2D2D',
-                        borderRadius: 9999,
-                        left: 40,
-                        top: 88,
-                    }}
-                />
-            </div>
-        </div>
+        <AnimatedCharacterScene
+            containerRef={containerRef}
+            purpleRef={purpleRef}
+            blackRef={blackRef}
+            yellowRef={yellowRef}
+            orangeRef={orangeRef}
+            purpleFaceRef={purpleFaceRef}
+            blackFaceRef={blackFaceRef}
+            yellowFaceRef={yellowFaceRef}
+            orangeFaceRef={orangeFaceRef}
+            yellowMouthRef={yellowMouthRef}
+        />
     );
 }
